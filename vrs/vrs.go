@@ -9,20 +9,10 @@ import (
 	"github.com/nuagenetworks/libvrsdk/api/entity"
 	"github.com/nuagenetworks/libvrsdk/api/port"
 	"math/rand"
+	"os"
 	"os/exec"
 	"time"
 )
-
-const UnixSocketFile = "/var/run/openvswitch/db.sock"
-const BridgeName = "alubr0"
-const VSDAddress = "192.168.99.3:8443"
-const Subnet = "subnet2"
-const Org = "org1"
-const Domain = "domain1"
-const Zone = "zone1"
-const User = "admin"
-const CspUser = "csproot"
-const CspPassword = "csproot"
 
 type VMType int
 
@@ -30,6 +20,19 @@ const (
 	VM        VMType = 0
 	Container VMType = 1
 )
+
+type NuageInfo struct {
+	UnixSocketFile string
+	BridgeName     string
+	VSDAddress     string
+	Subnet         string
+	Org            string
+	Domain         string
+	Zone           string
+	User           string
+	CspUser        string
+	CspPassword    string
+}
 
 type VMData struct {
 	Eth            string
@@ -42,6 +45,7 @@ type VMData struct {
 }
 
 var vrsConnection api.VRSConnection
+var NuageData NuageInfo
 
 func execCmd(c string) {
 	fmt.Println(c)
@@ -50,6 +54,7 @@ func execCmd(c string) {
 	if err != nil {
 		e := fmt.Sprintf("Error: %s", err)
 		fmt.Println(e)
+		os.Exit(1)
 	}
 }
 
@@ -75,15 +80,15 @@ func getPortInfo(port string) *api.PortIPv4Info {
 }
 
 func getVSDAuth() string {
-	auth := CspUser + ":" + CspPassword
+	auth := NuageData.CspUser + ":" + NuageData.CspPassword
 	auth = base64.StdEncoding.EncodeToString([]byte(auth))
-	cmdstr := fmt.Sprintf("curl -k -H 'X-Nuage-Organization: csp' -H 'Authorization: XREST %s' https://"+VSDAddress+"/nuage/api/v4_0/me", auth)
+	cmdstr := fmt.Sprintf("curl -k -H 'X-Nuage-Organization: csp' -H 'Authorization: XREST %s' https://"+NuageData.VSDAddress+"/nuage/api/v4_0/me", auth)
 	cmd := exec.Command("bash", "-c", cmdstr)
 	o, _ := cmd.Output()
 
 	var data []interface{}
 	json.Unmarshal(o, &data)
-	auth = CspUser + ":" + (data[0].(map[string]interface{}))["APIKey"].(string)
+	auth = NuageData.CspUser + ":" + (data[0].(map[string]interface{}))["APIKey"].(string)
 	auth = base64.StdEncoding.EncodeToString([]byte(auth))
 	fmt.Println(auth)
 	return auth
@@ -93,7 +98,7 @@ func vsdSplitActivation(vsdid string, vmname string, uuid string, portname strin
 
 	auth := getVSDAuth()
 
-	cmdstr := fmt.Sprintf("curl -k -X POST -H 'Content-Type: application/json' -H 'X-Nuage-Organization: csp' -H 'Authorization: XREST %s' -d '{\"name\": \"%s\",\"UUID\": \"%s\",\"interfaces\":[{\"name\":\"%s\",\"VPortID\":\"%s\",\"MAC\":\"%s\"}]}' https://"+VSDAddress+"/nuage/api/v4_0/vms", auth, vmname, uuid, portname, vsdid, mac)
+	cmdstr := fmt.Sprintf("curl -k -X POST -H 'Content-Type: application/json' -H 'X-Nuage-Organization: csp' -H 'Authorization: XREST %s' -d '{\"name\": \"%s\",\"UUID\": \"%s\",\"interfaces\":[{\"name\":\"%s\",\"VPortID\":\"%s\",\"MAC\":\"%s\"}]}' https://"+NuageData.VSDAddress+"/nuage/api/v4_0/vms", auth, vmname, uuid, portname, vsdid, mac)
 	cmd := exec.Command("bash", "-c", cmdstr)
 	o, _ := cmd.Output()
 	var data []interface{}
@@ -104,7 +109,7 @@ func vsdSplitActivation(vsdid string, vmname string, uuid string, portname strin
 
 func Connect() {
 	var err error
-	if vrsConnection, err = api.NewUnixSocketConnection(UnixSocketFile); err != nil {
+	if vrsConnection, err = api.NewUnixSocketConnection(NuageData.UnixSocketFile); err != nil {
 		fmt.Println("Unable to connect to the VRS")
 	}
 }
@@ -113,9 +118,9 @@ func getMetaData(splitActivation bool) (map[port.MetadataKey]string, map[entity.
 	portMetadata := make(map[port.MetadataKey]string)
 
 	if !splitActivation {
-		portMetadata[port.MetadataKeyDomain] = Domain
-		portMetadata[port.MetadataKeyNetwork] = Subnet
-		portMetadata[port.MetadataKeyZone] = Zone
+		portMetadata[port.MetadataKeyDomain] = NuageData.Domain
+		portMetadata[port.MetadataKeyNetwork] = NuageData.Subnet
+		portMetadata[port.MetadataKeyZone] = NuageData.Zone
 		portMetadata[port.MetadataKeyNetworkType] = "ipv4"
 	} else {
 		portMetadata[port.MetadataKeyDomain] = ""
@@ -126,8 +131,8 @@ func getMetaData(splitActivation bool) (map[port.MetadataKey]string, map[entity.
 
 	vmMetadata := make(map[entity.MetadataKey]string)
 	if !splitActivation {
-		vmMetadata[entity.MetadataKeyUser] = User
-		vmMetadata[entity.MetadataKeyEnterprise] = Org
+		vmMetadata[entity.MetadataKeyUser] = NuageData.User
+		vmMetadata[entity.MetadataKeyEnterprise] = NuageData.Org
 	} else {
 		vmMetadata[entity.MetadataKeyUser] = ""
 		vmMetadata[entity.MetadataKeyEnterprise] = ""
@@ -169,7 +174,7 @@ func createVM(name string, eth string, vsdid string, vmType VMType, mac string) 
 
 	portAttributes := port.Attributes{
 		MAC:    mac,
-		Bridge: BridgeName,
+		Bridge: NuageData.BridgeName,
 	}
 
 	entityInfo := api.EntityInfo{
@@ -237,7 +242,7 @@ func DestroyNet(info VMData) {
 	vrsConnection.DestroyPort(info.PortName)
 
 	// Remove from bridge
-	cmdstr = fmt.Sprintf("/usr/bin/ovs-vsctl --no-wait del-port %s %s", BridgeName, info.Eth)
+	cmdstr = fmt.Sprintf("/usr/bin/ovs-vsctl --no-wait del-port %s %s", NuageData.BridgeName, info.Eth)
 	execCmd(cmdstr)
 	vrsConnection.Disconnect()
 }
