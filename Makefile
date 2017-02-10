@@ -4,4 +4,4 @@ app:
 	go build
 
 deploy: app
-	scp demo root@135.121.117.224:/root
+	scp libvrsdk-demo root@135.121.117.224:/root

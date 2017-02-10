@@ -2,8 +2,9 @@ package main
 
 import (
 	"bufio"
-	"github.com/nuagenetworks/libvrsdk-demo/vrs"
+	"flag"
 	"fmt"
+	"github.com/nuagenetworks/libvrsdk-demo/vrs"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -76,21 +77,18 @@ func stopVM(info vrs.VMData) {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage:")
-		fmt.Println(os.Args[0] + " -c")
-		fmt.Println("\tThis will create a pair of veth interfaces, create a new network namespace and move one of the veth")
-		fmt.Println("\tthat namespace. The other veth will be added in alubr0. You will then be dropped in a bash shell ")
-		fmt.Println("\tusing that network namespace")
-		fmt.Println(os.Args[0] + " -vm <path_to_disk_file>")
-		fmt.Println("\tLaunch qemu-kvm with the provided image file. Will create a tap interface and add it in alubr0")
-		fmt.Println(os.Args[0] + " -split <path_to_disk_file> <vsdid_port>")
-		fmt.Println("\tLaunch qemu-kvm with the provided image file. Will create a tap interface and add it in alubr0")
-		fmt.Println("\tThis will make use of split-activation using the provided ID of the port in VSD")
-		os.Exit(1)
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s: -c | -vm=/path/to/vmdisk.qcow2 ...\n", os.Args[0])
+		flag.PrintDefaults()
 	}
+	runContainer := flag.Bool("c", false, "Run a container. This will create a pair of veth interfaces, create a new network\n "+
+		"\tnamespace and move one of the veth in that namespace. The other veth will be added in alubr0.\n"+
+		"\tYou will then be dropped in a bash shell using that network namespace")
+	vmImage := flag.String("vm", "/root/test.qcow2", "ImagePath. Launch qemu-kvm with the provided image file. Will create a tap interface and add it in alubr0")
+	vsdId := flag.String("split", "", "Use split-activation (only valid with qemu VM). This is the VSD ID of the port to use")
+	flag.Parse()
 
-	if os.Args[1] == "-c" {
+	if *runContainer {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		ns := "dumais" + fmt.Sprint(r.Intn(1000))
 		info := startContainer(ns)
@@ -100,18 +98,17 @@ func main() {
 		cmd.Stderr = os.Stderr
 		cmd.Run()
 		stopContainer(info, ns)
-	} else if os.Args[1] == "-vm" {
-		info := startVM(os.Args[2], "")
+	} else if *vmImage != "" {
+		info := startVM(*vmImage, *vsdId)
 		stopVM(info)
-	} else if os.Args[1] == "-split" {
-		info := startVM(os.Args[2], os.Args[3])
-		stopVM(info)
-	} else if os.Args[1] == "-clean" {
+		/*} else if os.Args[1] == "-clean" {
 		eth := os.Args[2]
 		UUID := os.Args[3]
 		PortName := os.Args[2]
 		vrs.Connect()
 		vrs.DestroyNet(vrs.VMData{Eth: eth, UUID: UUID, PortName: PortName})
-		execCmd("/sbin/ip tuntap del " + eth + " mode tap")
+		execCmd("/sbin/ip tuntap del " + eth + " mode tap")*/
+	} else {
+		flag.Usage()
 	}
 }
