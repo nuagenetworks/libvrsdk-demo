@@ -87,18 +87,30 @@ func main() {
 		"\tYou will then be dropped in a bash shell using that network namespace")
 	vmImage := flag.String("vm", "/root/test.qcow2", "ImagePath. Launch qemu-kvm with the provided image file. Will create a tap interface and add it in alubr0")
 	vsdId := flag.String("split", "", "Use split-activation (only valid with qemu VM). This is the VSD ID of the port to use")
-	vrs.NuageData.UnixSocketFile = *flag.String("unixsocketfile", "/var/run/openvswitch/db.sock", "")
-	vrs.NuageData.BridgeName = *flag.String("bridgename", "alubr0", "")
-	vrs.NuageData.VSDAddress = *flag.String("vsdaddress", "192.168.99.3:8443", "")
-	vrs.NuageData.Subnet = *flag.String("subnet", "subnet2", "VSD Subnet")
-	vrs.NuageData.Org = *flag.String("org", "org1", "VSD Organization")
-	vrs.NuageData.Domain = *flag.String("domain", "domain1", "VSD Domain")
-	vrs.NuageData.Zone = *flag.String("zone", "zone1", "VSD Zone")
-	vrs.NuageData.User = *flag.String("user", "admin", "User in organization")
-	vrs.NuageData.CspUser = *flag.String("cspuser", "csproot", "")
-	vrs.NuageData.CspPassword = *flag.String("csppassword", "csproot", "")
+
+	UnixSocketFile := flag.String("unixsocketfile", "/var/run/openvswitch/db.sock", "")
+	BridgeName := flag.String("bridgename", "alubr0", "")
+	VSDAddress := flag.String("vsdaddress", "192.168.99.3:8443", "")
+	Subnet := flag.String("subnet", "subnet2", "VSD Subnet")
+	Org := flag.String("org", "org1", "VSD Organization")
+	Domain := flag.String("domain", "domain1", "VSD Domain")
+	Zone := flag.String("zone", "zone1", "VSD Zone")
+	User := flag.String("user", "admin", "User in organization")
+	CspUser := flag.String("cspuser", "csproot", "")
+	CspPassword := flag.String("csppassword", "csproot", "")
 
 	flag.Parse()
+
+	vrs.NuageData.UnixSocketFile = *UnixSocketFile
+	vrs.NuageData.BridgeName = *BridgeName
+	vrs.NuageData.VSDAddress = *VSDAddress
+	vrs.NuageData.Subnet = *Subnet
+	vrs.NuageData.Org = *Org
+	vrs.NuageData.Domain = *Domain
+	vrs.NuageData.Zone = *Zone
+	vrs.NuageData.User = *User
+	vrs.NuageData.CspUser = *CspUser
+	vrs.NuageData.CspPassword = *CspPassword
 
 	if *runContainer {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
